@@ -36,6 +36,8 @@ struct Shared {
     int processed_reports;
     int buf_size;
     int shutdown;
+    int active_workers;
+    int max_workers;
     // буфер фиксированного размера (будет использоваться как flexible array)
     // но здесь укажем один элемент; фактический размер учтём при mmap.
     Report reports[1];
@@ -126,40 +128,46 @@ int main(int argc, char* argv[]) {
     shared->processed_reports = 0;
     shared->buf_size = buf_size;
     shared->shutdown = 0;
+    shared->active_workers = 0;
+    shared->max_workers = num_groups;
 
     // named semaphores
     string s_mutex = get_shm_name("_mutex");
     string s_report = get_shm_name("_report");
     string s_items = get_shm_name("_items");
     string s_slots = get_shm_name("_slots");
+    string s_workers = get_shm_name("_workers");
 
     // Удаляем существующие semaphores, если создались с крашем
     safe_sem_unlink(s_mutex.c_str());
     safe_sem_unlink(s_report.c_str());
     safe_sem_unlink(s_items.c_str());
     safe_sem_unlink(s_slots.c_str());
+    safe_sem_unlink(s_workers.c_str());
 
     // Инициализируем семафоры
     sem_t* section_mutex = sem_open(s_mutex.c_str(), O_CREAT | O_EXCL, 0600, 1);
     sem_t* report_mutex = sem_open(s_report.c_str(), O_CREAT | O_EXCL, 0600, 1);
     sem_t* items_mutex = sem_open(s_items.c_str(), O_CREAT | O_EXCL, 0600, 0);
     sem_t* slots_mutex = sem_open(s_slots.c_str(), O_CREAT | O_EXCL, 0600, buf_size);
+    sem_t* workers_mutex = sem_open(s_workers.c_str(), O_CREAT | O_EXCL, 0600, 1);
 
     if(section_mutex == SEM_FAILED || report_mutex == SEM_FAILED || items_mutex == SEM_FAILED ||
-       slots_mutex == SEM_FAILED){
+       slots_mutex == SEM_FAILED || workers_mutex == SEM_FAILED){
         perror("sem_open (create)");
 
         if(section_mutex != SEM_FAILED) sem_close(section_mutex);
         if(report_mutex != SEM_FAILED) sem_close(report_mutex);
         if(items_mutex != SEM_FAILED) sem_close(items_mutex);
         if(slots_mutex != SEM_FAILED) sem_close(slots_mutex);
+        if(workers_mutex != SEM_FAILED) sem_close(workers_mutex);
         shm_unlink(shm_name.c_str());
         return 1;
     }
 
     cout << "Manager(pid=" << getpid() << "): создана SHM и семафоры.\n";
     cout << "SHM name: " << shm_name << "\n";
-    cout << "Semaphores: " << s_mutex << ", " << s_report << ", " << s_items << ", " << s_slots << ", " << "\n";
+    cout << "Semaphores: " << s_mutex << ", " << s_report << ", " << s_items << ", " << s_slots << ", " << s_workers << "\n";
     cout << "Ожидайте запуска рабочих в других консолях командой: ./worker_named open\n";
 
     // Сильвер — принимает отчёты
@@ -216,12 +224,14 @@ int main(int argc, char* argv[]) {
     sem_close(report_mutex);
     sem_close(items_mutex);
     sem_close(slots_mutex);
+    sem_close(workers_mutex);
 
     // unlink именованных семафоров
     safe_sem_unlink(s_mutex.c_str());
     safe_sem_unlink(s_report.c_str());
     safe_sem_unlink(s_items.c_str());
     safe_sem_unlink(s_slots.c_str());
+    safe_sem_unlink(s_workers.c_str());
 
     munmap(mem, shm_size);
     shm_unlink(shm_name.c_str());

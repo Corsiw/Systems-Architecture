@@ -12,6 +12,7 @@
 2. **Группы пиратов (дочерние процессы, запускаемые отдельно)**
 
    * подключаются к уже существующим объектам IPC (shared memory и семафоры);
+   * проверяют, разрешено ли подключение новых групп (через семафор /worker_mutex и счётчик active_workers);
    * получают номер участка для поиска;
    * «ищут клад» (имитация задержкой `sleep()`);
    * записывают отчёт в разделяемую память;
@@ -27,10 +28,11 @@
 
 | Название семафора     | Назначение                                                                   |
 | --------------------- | ---------------------------------------------------------------------------- |
-| `/mutex_next_section` | обеспечивает взаимное исключение при выдаче следующего участка               |
-| `/report_mutex`       | защита буфера отчётов при записи и чтении                                    |
-| `/items`              | количество доступных отчётов для чтения|
-| `/slots`              | количество свободных слотов для новых отчётов                                |
+| `_mutex`              | обеспечивает взаимное исключение при выдаче следующего участка               |
+| `_report`             | защита буфера отчётов при записи и чтении                                    |
+| `_items`              | количество доступных отчётов для чтения                                      |
+| `_slots`              | количество свободных слотов для новых отчётов                                |
+| `_workers`            | защита и управление счётчиками, чтобы ограничить число одновременных пиратов |
 
 Передача данных осуществляется через **именованную разделяемую память** (`/treasure_shm`), в которой содержатся:
 
@@ -65,6 +67,8 @@
     shared->processed_reports = 0;
     shared->buf_size = buf_size;
     shared->shutdown = 0;
+    shared->active_workers = 0;
+    shared->max_workers = num_groups;
 
     ...
 
@@ -73,18 +77,21 @@
     string s_report = get_shm_name("_report");
     string s_items = get_shm_name("_items");
     string s_slots = get_shm_name("_slots");
+    string s_workers = get_shm_name("_workers");
 
     // Удаляем существующие semaphores, если создались с крашем
     safe_sem_unlink(s_mutex.c_str());
     safe_sem_unlink(s_report.c_str());
     safe_sem_unlink(s_items.c_str());
     safe_sem_unlink(s_slots.c_str());
+    safe_sem_unlink(s_workers.c_str());
 
     // Инициализируем семафоры
     sem_t* section_mutex = sem_open(s_mutex.c_str(), O_CREAT | O_EXCL, 0600, 1);
     sem_t* report_mutex = sem_open(s_report.c_str(), O_CREAT | O_EXCL, 0600, 1);
     sem_t* items_mutex = sem_open(s_items.c_str(), O_CREAT | O_EXCL, 0600, 0);
     sem_t* slots_mutex = sem_open(s_slots.c_str(), O_CREAT | O_EXCL, 0600, buf_size);
+    sem_t* workers_mutex = sem_open(s_workerss.c_str(), O_CREAT | O_EXCL, 0600, 1);
 
     // Приём отчётов
     while (shared->processed_reports < total_sections) {
@@ -96,11 +103,13 @@
     sem_close(report_mutex);
     sem_close(items_mutex);
     sem_close(slots_mutex);
+    sem_close(workers_mutex);
     // unlink именованных семафоров
     safe_sem_unlink(s_mutex.c_str());
     safe_sem_unlink(s_report.c_str());
     safe_sem_unlink(s_items.c_str());
     safe_sem_unlink(s_slots.c_str());
+    safe_sem_unlink(s_workers.c_str());
 
     munmap(mem, shm_size);
     shm_unlink(shm_name.c_str());
@@ -108,7 +117,7 @@
 
 ---
 
-### **3.2 pirate.cpp (пиратская группа)**
+### **3.2 worker_named.cpp (пиратская группа)**
 
 Каждый пират подключается к тем же IPC-объектам и выполняет поиск участка:
 
@@ -122,11 +131,13 @@
     string s_report = get_shm_name("_report");
     string s_items = get_shm_name("_items");
     string s_slots = get_shm_name("_slots");
+    string s_workers = get_shm_name("_workers");
 
     sem_t* section_mutex = sem_open(s_mutex.c_str(), 0);
     sem_t* report_mutex = sem_open(s_report.c_str(), 0);
     sem_t* items_mutex = sem_open(s_items.c_str(), 0);
     sem_t* slots_mutex = sem_open(s_slots.c_str(), 0);
+    sem_t* workers_mutex = sem_open(s_workers.c_str(), 0);
 
 
     // Отправка отчетов
@@ -139,6 +150,7 @@
     sem_close(report_mutex);
     sem_close(items_mutex);
     sem_close(slots_mutex);
+    sem_close(workers_mutex);
 
     munmap(mem, shm_sz);
 ```

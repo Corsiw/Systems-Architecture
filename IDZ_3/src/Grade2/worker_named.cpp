@@ -36,6 +36,8 @@ struct Shared {
     int processed_reports;
     int buf_size;
     int shutdown;
+    int active_workers;
+    int max_workers;
     // буфер фиксированного размера (будет использоваться как flexible array)
     // но здесь укажем один элемент; фактический размер учтём при mmap.
     Report reports[1];
@@ -100,17 +102,30 @@ int main(int argc, char* argv[]) {
     string s_report = get_shm_name("_report");
     string s_items = get_shm_name("_items");
     string s_slots = get_shm_name("_slots");
+    string s_workers = get_shm_name("_workers");
 
     sem_t* section_mutex = sem_open(s_mutex.c_str(), 0);
     sem_t* report_mutex = sem_open(s_report.c_str(), 0);
     sem_t* items_mutex = sem_open(s_items.c_str(), 0);
     sem_t* slots_mutex = sem_open(s_slots.c_str(), 0);
+    sem_t* workers_mutex = sem_open(s_workers.c_str(), 0);
 
     if(section_mutex == SEM_FAILED || report_mutex == SEM_FAILED || items_mutex == SEM_FAILED ||
-       slots_mutex == SEM_FAILED){
+       slots_mutex == SEM_FAILED || workers_mutex == SEM_FAILED){
         perror("sem_open (worker)");
         return 1;
     }
+
+    // Проверка лимита
+    sem_wait(workers_mutex);
+    if (shared->active_workers >= shared->max_workers) {
+        std::cerr << "[Worker " << getpid() << "] Максимальное число активных групп ("
+                << shared->max_workers << ") уже достигнуто. Завершение.\n";
+        sem_post(workers_mutex);
+        return 0;
+    }
+    shared->active_workers++;
+    sem_post(workers_mutex);
 
     // Простая генерация id группы на основе PID
     int group_id = (int)(getpid() % 10000);
