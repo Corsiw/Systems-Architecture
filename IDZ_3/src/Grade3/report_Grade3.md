@@ -16,7 +16,7 @@
    * печатают результаты в свою консоль;
    * отправляют уведомления о действиях наблюдателю.
 
-3. **Наблюдатель (`observer_named`)**
+3. **Наблюдатель (`observer`)**
 
    * получает сообщения из именованного канала `/treasure_fifo`;
    * отображает в своей консоли сводку всех событий в реальном времени.
@@ -172,7 +172,7 @@ void send_to_observer(const std::string &msg) {
     g++ -std=c++17 -pthread -O2 -o observer IDZ_3/src/Grade3/observer.cpp
     ```
 
-2. Запустить **observer**
+2. Запустить **observer**:
     ```bash
     ./observer
     ```
