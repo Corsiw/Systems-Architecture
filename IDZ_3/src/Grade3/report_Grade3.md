@@ -165,11 +165,11 @@ void send_to_observer(const std::string &msg) {
 1. Компиляция:
 
     ```bash
-    g++ -std=c++17 -pthread -O2 -o manager_named IDZ_3/src/Grade3/manager_named.cpp
+    g++ -std=c++17 -pthread -O2 -o manager_named src/Grade3/manager_named.cpp
 
-    g++ -std=c++17 -pthread -O2 -o worker_named IDZ_3/src/Grade3/worker_named.cpp
+    g++ -std=c++17 -pthread -O2 -o worker_named src/Grade3/worker_named.cpp
 
-    g++ -std=c++17 -pthread -O2 -o observer IDZ_3/src/Grade3/observer.cpp
+    g++ -std=c++17 -pthread -O2 -o observer src/Grade3/observer.cpp
     ```
 
 2. Запустить **observer**:

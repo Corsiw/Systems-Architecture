@@ -135,7 +135,7 @@ struct Shared {
 Компиляция:
 
 ```bash
-g++ -std=c++20 -pthread -O2 -o treasure treasure.cpp
+g++ -std=c++20 -pthread -O2 -o treasure src/Grade1/treasure.cpp
 ```
 
 Запуск:

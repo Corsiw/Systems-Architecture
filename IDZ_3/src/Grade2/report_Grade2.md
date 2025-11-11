@@ -169,9 +169,9 @@
 1. Компиляция:
 
     ```bash
-    g++ -std=c++17 -pthread -O2 -o manager_named IDZ_3/src/Grade2/manager_named.cpp
+    g++ -std=c++17 -pthread -O2 -o manager_named src/Grade2/manager_named.cpp
 
-    g++ -std=c++17 -pthread -O2 -o worker_named IDZ_3/src/Grade2/worker_named.cpp
+    g++ -std=c++17 -pthread -O2 -o worker_named src/Grade2/worker_named.cpp
     ```
 
 2. Сначала запустить **управляющий процесс**:
