@@ -61,7 +61,8 @@ void *sum_thread_function(void *arg) {
     buffer[write_index++] = sum;
     active_sums--;
     std::cout << "Sum writes " << sum
-              << " to buffer. Current size: " << write_index - read_index << "\n";
+              << " to buffer. Current size: " << write_index - read_index
+              << "\n";
 
     pthread_cond_signal(&buffer_cond);
   }
