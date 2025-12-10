@@ -1,1 +1,1 @@
-10 2 files/output_file_2
+10 2 files/output_file_2.txt
